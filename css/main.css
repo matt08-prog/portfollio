@@ -64,6 +64,7 @@ video {
 	top: 42%;
 	height: 15%;
 	transform: scaleX(-1);
+	pointer-events: none
 }
 
 .rightArrow {
@@ -72,6 +73,7 @@ video {
 	top: 42%;
 	height: 15%;
 	left: 95%;
+	pointer-events: none
 }
 
 .cube {
