@@ -1,8 +1,8 @@
 import { OrbitControls } from "../vendor/OrbitControls.js";
 import * as THREE from "../vendor/three.module.js";
-import { GUI } from "../vendor/dat.gui.module.js";
-import { Stats } from "../vendor/stats.module.js";
 import { Input } from "./input.js";
+import { Slides } from "./slides.js";
+import { moveRight, moveLeft } from "./transition.js";
 
 Number.prototype.map = function (in_min, in_max, out_min, out_max) {
   return ((this - in_min) * (out_max - out_min)) / (in_max - in_min) + out_min;
@@ -10,17 +10,46 @@ Number.prototype.map = function (in_min, in_max, out_min, out_max) {
 
 class App {
   constructor() {
-    var stats, scene, renderer;
+    function left() {
+      let left = new moveLeft(self);
+    }
+    function right() {
+      let right = new moveRight(self);
+    }
+
+    function cubeClicked() {
+      console.log("gr5yr5", self.slideIndex);
+      if (!self.first) {
+        if (self.slideIndex > 0) {
+          window.location.href = links[self.slideIndex - 1];
+        } else {
+          window.location.href = links[1];
+        }
+      }
+    }
+
+    let links = [
+      "https://matt08-prog.github.io/wiki_world_react/",
+      "https://matt08-prog.github.io/radio_garden.github.io/",
+    ];
+    var scene, renderer;
     var camera, cameraControls;
     let self = this;
-
+    self.first = true;
+    self.transition = false;
+    document.onmousedown = () => {
+      const video = document.querySelectorAll("video");
+      video.forEach((it) => {
+        it.play();
+      });
+    };
     document.onmousemove = function (e) {
       self.mouseX = e.pageX;
       self.mouseY = e.pageY;
 
       self.distToCenter = Math.sqrt(
-        Math.pow(self.mouseX - (window.innerWidth / 2), 2) +
-        Math.pow(self.mouseY - (window.innerHeight / 2), 2)
+        Math.pow(self.mouseX - window.innerWidth / 2, 2) +
+          Math.pow(self.mouseY - window.innerHeight / 2, 2)
       );
 
       //console.log(self.distToCenter)
@@ -46,15 +75,9 @@ class App {
       // renderer.setSize(window.innerWidth, window.innerHeight);
       document.getElementById("container").appendChild(renderer.domElement);
 
-      // add Stats.js - https://github.com/mrdoob/stats.js
-      stats = new Stats();
-      stats.domElement.style.position = "absolute";
-      stats.domElement.style.bottom = "0px";
-      document.body.appendChild(stats.domElement);
-
       // create a scene
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xffffff);
+      scene.background = new THREE.Color(0x000000);
       // put a camera in the scene
       camera = new THREE.PerspectiveCamera(
         35,
@@ -82,24 +105,100 @@ class App {
       if (THREEx.FullScreen.available()) {
         THREEx.FullScreen.bindKey();
       }
-      self.loader = new THREE.TextureLoader();
+
+      self.scene = scene;
+      self.loadCubes = true;
+      const slides = new Slides(self);
+
+      self.spriteLoader = new THREE.TextureLoader();
+
+      self.spriteLoader.load(
+        "./images/wikiWorld.png",
+        function (map) {
+          const material = new THREE.SpriteMaterial({ map: map });
+          const sprite = new THREE.Sprite(material);
+          sprite.scale.set(3, 3);
+          let geom = new THREE.PlaneGeometry(3, 1.5);
+
+          let mat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            side: THREE.DoubleSide,
+          });
+
+          let box = new THREE.Mesh(geom, mat);
+          box.renderOrder = 999;
+          box.material.depthTest = false;
+          box.material.depthWrite = false;
+          box.onBeforeRender = function (renderer) {
+            renderer.clearDepth();
+          };
+
+          self.texts = [];
+          let g = new THREE.Group();
+          g.add(sprite);
+          g.add(box);
+          self.texts.push(g);
+          self.spriteLoader.load(
+            "./images/radio.png",
+            function (map) {
+              const material = new THREE.SpriteMaterial({ map: map });
+              const sprite = new THREE.Sprite(material);
+              sprite.scale.set(3, 3);
+              let geom = new THREE.PlaneGeometry(3, 1.5);
+
+              let mat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+              });
+
+              let box = new THREE.Mesh(geom, mat);
+              box.renderOrder = 999;
+              box.material.depthTest = false;
+              box.material.depthWrite = false;
+              box.onBeforeRender = function (renderer) {
+                renderer.clearDepth();
+              };
+
+              let g = new THREE.Group();
+              g.add(sprite);
+              g.add(box);
+              self.texts.push(g);
+              self.texts.push(g.clone());
+
+              self.texts.forEach((it) => {
+                self.scene.add(it);
+                it.position.set(self.origin.x, self.origin.y, self.origin.z);
+              });
+            },
+
+            // onProgress callback currently not supported
+            undefined,
+
+            // onError callback
+            function (err) {
+              console.error("An error happened.");
+            }
+          );
+        },
+
+        // onProgress callback currently not supported
+        undefined,
+
+        // onError callback
+        function (err) {
+          console.error("An error happened.");
+        }
+      );
+
+      self.textureLoader = new THREE.TextureLoader();
 
       // load a resource
-      self.loader.load(
+      self.textureLoader.load(
         // resource URL
-        "./images/g3.jpg",
+        "./images/g.jpg",
 
         // onLoad callback
         function (texture) {
-          // in this example we create the material when the texture is loaded
-          // here you add your objects
-          // - you will most likely replace this part by your own
-          //   var geometry = new THREE.TorusGeometry(1, 0.42);
-          //   var material = new THREE.MeshNormalMaterial();
-          //   var mesh = new THREE.Mesh(geometry, material);
-          //   scene.add(mesh);
-
-          const gui = new GUI();
           const input = new Input();
 
           // Create an empty array to stores the points
@@ -124,7 +223,7 @@ class App {
             70,
             1,
             50,
-            false
+            true
           );
 
           // Define a material for the tube with a jpg as texture instead of plain color
@@ -158,41 +257,55 @@ class App {
         Math.pow(0 - window.innerWidth / 2, 2) +
           Math.pow(0 - window.innerHeight / 2, 2)
       );
+
       //console.log(self.maxDistToCenter);
+      document.querySelector(".leftButton").onclick = left;
+      document.querySelector(".rightButton").onclick = right;
+
+      document.querySelector(".cube").onclick = cubeClicked;
     }
 
-    
     // animation loop
-    function animate() {
+    function animate(time) {
       // loop on request animation loop
       // - it has to be at the begining of the function
       // - see details at http://my.opera.com/emoller/blog/2011/12/20/requestanimationframe-for-smart-er-animating
       requestAnimationFrame(animate);
+      TWEEN.update(time);
 
       // do the render
       render();
-
-      // update stats
-      stats.update();
     }
 
     // render the scene
     function render() {
+      // console.log(self.tween)
+      self.slides.forEach((it) => {
+        it.rotation.y += 0.008;
+      });
+
+      //self.cube.rotation.z += 0.001;
       scene.remove(self.tubeMesh);
-      self.tubeMaterial.map.offset.x += self.distToCenter.map(0,self.maxDistToCenter,0.009,-0.003);
-      self.tubeMaterial.map.offset.y += 0.001;
+      let minSpeed = 0.0006;
+      let maxSpeed = 0.001;
+      if (self.tubeMaterial && self.distToCenter) {
+        self.tubeMaterial.map.offset.x += self.distToCenter.map(
+          0,
+          self.maxDistToCenter,
+          maxSpeed,
+          minSpeed
+        );
+        self.tubeMaterial.map.offset.y += 0.001;
+      }
+      if (self.curve) {
+        self.curve.points[2].x = -self.mouseX * 0.1;
+
+        self.curve.points[2].y = self.mouseY * 0.1;
+
+        // Update the X position of the last point
+        self.curve.points[4].x = -self.mouseX * 0.1;
+      }
       // Update the third point of the curve in X and Y axis
-      //-64.5
-      self.curve.points[2].x = -self.mouseX * 0.1;
-      //console.log(self.curve.points[2].x);
-      //   if (self.curve.points[2].x < -64) {
-      //     self.curve.points[2].x = -64
-      //   }
-
-      self.curve.points[2].y = self.mouseY * 0.1;
-
-      // Update the X position of the last point
-      self.curve.points[4].x = -self.mouseX * 0.1;
 
       self.tubeGeometry = new THREE.TubeGeometry(self.curve, 70, 1, 50, false);
       self.tubeMesh = new THREE.Mesh(self.tubeGeometry, self.tubeMaterial);
